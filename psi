@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+require './modules/pid.ph';
+
+our ($UPLOAD_URL, $ARCHIVE_URL);
+
+
+my %opts = (
+  'Title' => 'Pathways Save Inspector',
+  'PreHead' => '<p class="tagline">You see a strange rune.</p>',
+  );
+
+my $html = <<END;
+<div id="formblockouter">
+<h3>Share</h3>
+<div id="formblockinner">
+<form enctype="multipart/form-data" method="POST" action="$UPLOAD_URL">
+
+<p><input type="file" id="filebox" name="filebox"></p>
+
+<p><select id="version" name="version">
+<option value="full20" selected>Version 2.0</option>
+<option value="full11">Version 1.1</option>
+<option value="demo20">Demo 2.0</option>
+<option value="demoA1">Demo A1</option>
+</select></p>
+
+<p><label class="label" for="author">Played by: (optional)</label><br>
+<input type="text" id="author" name="author" length="25" maxlength="63" style="width: 200px"></p>
+
+<p class="button"><input type="submit" name="submit" value="Upload"></p>
+
+</form></div></div>
+
+<div id="uploadblockouter">
+<h3>Latest uploads</h3>
+<div id="uploadblockinner">
+<ul class="uploads">
+END
+
+my ($slotid);
+my $st = DBObject()->bind(<<END, undef, \$slotid);
+SELECT id
+  FROM slot
+ ORDER BY id DESC
+ LIMIT 8
+END
+while ($st->fetch())
+{
+  $html .= '<li>' . SlotLinkMedium($slotid) . "</li>\n";
+}
+$html .= <<END;
+</ul>
+</div>
+
+<div style="clear: both"></div>
+<p style="padding-left: 20px; text-transform: uppercase"><a href="$ARCHIVE_URL/">Archives</a></p>
+</div>
+
+<div style="clear: both"></div>
+END
+
+DoPage(\%opts, $html);

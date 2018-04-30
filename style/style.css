@@ -1,0 +1,229 @@
+@import url("MyFontsWebfontsKit.css");
+
+HTML {
+  background-color: #ded7a9;
+}
+BODY {
+  background-color: #ded7a9;
+  color: #383317;
+  font-family: QuadratSerial;
+  font-size: 13px;
+}
+
+H1, H2, H3, H4, H5, H6 { font-weight: normal; }
+
+#levelselectbox {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  color: #ded7a9;
+  z-index: 50;
+}
+#levelselectbox a,
+#levelselectbox a:link,
+#levelselectbox a:visited,
+#levelselectbox a:active {
+  color: white;
+  text-decoration: none;
+}
+#levelselectlist {
+  background-color: #262311;
+  padding: 1px;
+}
+#levelselectlist .levelcol {
+  float: left;
+  margin: 0 2em;
+}
+#levelselectlist ul {
+  list-style: square;
+}
+#levelselectlist h4 {
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  margin: 0.6em 0;
+  padding: 0;
+}
+#levelselectend {
+  clear: both;
+} 
+#levelselecttab {
+  text-transform: uppercase;
+  background-color: #262311;
+  margin: 0 20px 0 auto;
+  text-align: center;
+  width: 80px;
+  padding: 5px 15px;
+  cursor: pointer;
+}
+
+DIV#map {
+  position: relative;
+  width: 408px;
+  height: 408px;
+}
+
+H1 {
+  font-weight: normal;
+  text-align: left;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+H3 {
+  font-weight: normal;
+  text-transform: uppercase;
+  margin: 0.5em 0 0.25em;
+  padding: 0;
+}
+H3.subhead {
+  text-transform: none;
+  text-align: left;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+UL {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+DIV.mapoverlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 408px;
+  height: 408px;
+  opacity: 0.4;
+}
+
+SPAN.monster_coord_list,
+SPAN.item_coord_list,
+SPAN.save_coord_list,
+SPAN.door_secret_coord_list,
+SPAN.door_trigger_coord_list,
+SPAN.other_trigger_coord_list,
+SPAN.coord_list {
+  display: none;
+}
+
+.item_indicator {
+  background-color: #0f0;
+  opacity: 0.3;
+}
+.monster_indicator {
+  background-color: #f00;
+  opacity: 0.3;
+}
+.door_indicator {
+  background-color: #0bb;
+  opacity: 0.3;
+}
+.door_secret_indicator {
+  background-color: #f00;
+  opacity: 0.3;
+}
+.door_trigger_indicator {
+  background-color: #00f;
+  opacity: 0.3;
+}
+.other_trigger_indicator {
+  background-color: #00f;
+  opacity: 0.3;
+}
+.ladder_indicator {
+  background-color: #0f0;
+  opacity: 0.3;
+}
+.tele_indicator {
+  background-color: #0f0;
+  opacity: 0.3;
+}
+.ladder_dest_indicator {
+  background-color: #00f;
+  opacity: 0.3;
+}
+.corpse_indicator {
+  background-color: #f0f;
+  opacity: 0.3;
+}
+.save_indicator {
+  background-color: #f0f;
+  opacity: 0.3;
+}
+
+UL.item_summary LI {
+  cursor: pointer;
+}
+.itemdesc {
+  position: relative;
+  border: solid #9A936D 1px;
+  background: #F5F3E4;
+  width: 500px;
+  height: 200px;
+}
+.itemdesc .imgwrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 140px;
+  height: 200px;
+  line-height: 140px;
+  text-align: center;
+  background: #9A936D;
+  border-right: solid #4b4425 1px;
+}
+.itemdesc .imgwrap IMG {
+  max-width: 120px;
+  max-height: 120px;
+  vertical-align: middle;
+}
+.itemdesc .name {
+  margin: 20px 30px 12px 165px;
+  padding: 0;
+  font-size: 18px;
+}
+.itemdesc .desc {
+  margin: 12px 30px 0 165px;
+  padding: 0;
+}
+
+UL.monster_summary LI {
+  cursor: pointer;
+}
+.monsterdesc {
+  position: relative;
+  border: solid #9A936D 1px;
+  background: #F5F3E4;
+  width: 500px;
+  height: 200px;
+}
+.monsterdesc .imgwrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 160px;
+  height: 200px;
+  line-height: 200px;
+  text-align: center;
+  background: #9A936D;
+  border-right: solid #4b4425 1px;
+}
+.monsterdesc .imgwrap IMG {
+  max-width: 140px;
+  max-height: 180px;
+  vertical-align: middle;
+}
+.monsterdesc .name {
+  margin: 20px 30px 12px 185px;
+  padding: 0;
+  font-size: 18px;
+}
+.monsterdesc .desc {
+  margin: 12px 30px 0 185px;
+  padding: 0;
+}
+
+

@@ -1,0 +1,119 @@
+DIV#head {
+  display: none;
+}
+
+DIV#map {
+  position: relative;
+  margin: 0.5em 0;
+}
+
+DIV.mapoverlay {
+  display: block;
+  opacity: 0.4;
+}
+DIV.map_indicators {
+  display: none;
+}
+
+DIV#styleswitcher {
+  position: absolute;
+  z-index: 51;
+  right: 150px;
+  bottom: 5px;
+  width: 200px;
+  text-align: right;
+  font-size: 11px;
+  display: none;
+}
+DIV#styleswitcher A {
+  color: transparent !important;
+}
+DIV#levelselectbox:hover DIV#styleswitcher A {
+  color: #383317 !important;
+}
+A#switchfull, A#switchlight {
+  display: inline;
+}
+
+DIV#levelselecttab {
+  background-color: #B9B38D;
+}
+DIV#levelselectbox:hover DIV#levelselecttab {
+  background-color: #262311;
+}
+
+
+H1, H3.subhead {
+  margin-left: 0;
+}
+DIV#summary H3 {
+  margin: 1em 0 0.25em;
+}
+DIV#summary,
+DIV#summary H3,
+DIV#summary H3.active,
+DIV#summary UL,
+DIV#summary LI {
+  position: static !important;
+  float: none !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  text-align: left !important;
+}
+DIV#summary UL {
+  list-style: disc outside none !important;
+  margin: 0 0 0 1em !important;
+  padding: 0 !important;
+}
+DIV#summary LI {
+  display: list-item !important;
+  margin: 0 2em !important;
+  padding: 0 !important;
+  border: none !important;
+}
+DIV#summary H3:hover,
+DIV#summary LI:hover {
+  cursor: auto !important;
+}
+
+SPAN.monster_coord_list,
+SPAN.item_coord_list,
+SPAN.save_coord_list,
+SPAN.door_secret_coord_list,
+SPAN.door_trigger_coord_list,
+SPAN.other_trigger_coord_list {
+  display: block;
+  padding-left: 60px;
+  font-size: small;
+}
+
+SPAN.coord_list,
+SPAN.random_rate,
+SPAN.ammo_rounds {
+  display: inline;
+}
+
+DIV#summary SPAN.imgwrap {
+  display: inline-block !important;
+  position: static !important;
+  width: 40px !important;
+  height: 20px !important;
+  line-height: 20px !important;
+  text-align: center !important;
+  vertical-align: bottom !important;
+}
+DIV#summary SPAN.imgwrap IMG {
+  max-height: 20px !important;
+  max-width: 32px !important;
+  vertical-align: bottom !important;
+}
+DIV#summary UL.monster_summary SPAN.imgwrap {
+  height: 40px !important;
+  line-height: 40px !important;
+}
+DIV#summary UL.monster_summary SPAN.imgwrap IMG {
+  max-height: 40px !important;
+}

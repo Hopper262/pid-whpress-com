@@ -1,0 +1,147 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+require './modules/pid.ph';
+require './modules/parse.subs';
+
+
+my $cg = CGObject();
+my $vers = $cg->param('version') || 'full20';
+$vers = 'full20' unless ($vers eq 'demoA1' || $vers eq 'full11' || $vers eq 'demo20');
+my $a1demo = ($vers eq 'demoA1') ? 1 : 0;
+
+my $uploadfh = $cg->upload('filebox');
+unless ($uploadfh)
+{
+  UserError('Please upload a save file.');
+}
+
+# check for MacBinary encoding
+my $macbin = 0;
+my $mbsize = 0;
+my $chunk = '';
+read($uploadfh, $chunk, 128) or UserError("Your save file is too small to be valid.");
+if (substr($chunk,  0, 1) eq chr(0) &&
+    substr($chunk, 74, 1) eq chr(0) &&
+    substr($chunk, 102, 4) eq 'mBIN')
+{
+  $macbin = 1;
+  $mbsize = unpack('N', substr($chunk, 83, 4));
+}
+
+my $savedata = '';
+if ($macbin)
+{
+  read($uploadfh, $chunk, $mbsize);
+  $savedata .= $chunk;
+}
+else
+{
+  $savedata .= $chunk;
+  local $/ = undef;
+  $savedata .= <$uploadfh>;
+}
+close $uploadfh;
+
+unless (length($savedata))
+{
+  UserError('Please upload a save file.');
+}
+SetReadSource($savedata);
+undef $savedata;
+
+# grab parts
+my (@slots, @lmaps, @pstates, @lstates);
+if ($a1demo)
+{
+  ReadPadding(14);
+  push(@slots, ReadPStr(64));
+  SetReadOffset(0);
+  push(@pstates, ReadRaw(1716));
+  push(@lmaps, [ 0, 1, 2 ]);
+  for my $i (0..2)
+  {
+    push(@lstates, ReadRaw(7512));
+  }
+}
+else
+{
+  # names
+  for my $i (0..9)
+  {
+    push(@slots, ReadPStr(128));
+  }
+  
+  # level offsets
+  my $maxoffset = -1;
+  for my $i (0..9)
+  {
+    my @offsets = ();
+    for my $lev (0..24)
+    {
+      my $off = ReadUint16();
+      next if (($vers eq 'demo20') && ($lev > 2));
+      next unless length $slots[$i];
+      $maxoffset = $off if $off > $maxoffset;
+      push(@offsets, $off);
+    }
+    push(@lmaps, \@offsets);
+  }
+  
+  # player data
+  for my $i (0..9)
+  {
+    push(@pstates, ReadRaw(2876));
+  }
+  
+  my @leveldata;
+  for my $i (0..$maxoffset)
+  {
+    push(@lstates, ReadRaw(9112));
+  }
+}
+
+
+my (@saveinfo);
+my $author = $cg->param('author');
+for my $i (0..(scalar(@slots) - 1))
+{
+  my $name = $slots[$i];
+  next unless length($name);
+  $name =~ s/^\s+//;
+  $name =~ s/\s+$//;
+  
+  my $player_id = StorePState($pstates[$i], $vers);
+  
+  my @level_ids;
+  for my $j (@{ $lmaps[$i] })
+  {
+    push(@level_ids, StoreLState($lstates[$j], $vers, scalar(@level_ids)));
+  }
+  
+  my ($id, $display_id) = StoreSlot($name, $author, $vers, $player_id, @level_ids);
+  push(@saveinfo, $id);
+}
+
+PageError("No save files found.") unless scalar @slots;
+
+my %opts = (
+  'Head' => 'Upload Complete',
+  'Title' => 'Pathways Save Inspector',
+  'PreHead' => '<p class="tagline">You see a strange rune.</p>',
+  );
+
+my $html = <<END;
+<div style="padding: 0 50px 30px">
+<p style="padding-left: 20px">Thank you for sharing your file.</p>
+<ul class="uploads">
+END
+for my $id (@saveinfo)
+{
+  $html .= '<li>' . SlotLinkLarge($id) . '</li>';
+}
+$html .= <<END;
+</ul></div>
+END
+
+DoPage(\%opts, $html);

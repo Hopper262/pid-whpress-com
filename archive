@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+require './modules/pid.ph';
+
+
+my %opts = (
+  'Title' => 'Pathways Save Inspector',
+  'PreHead' => '<p class="tagline">You see a strange rune.</p>',
+  );
+
+my $html = <<END;
+<h3>Archives</h3>
+<ul class="uploads">
+END
+
+my ($slotid);
+my $st = DBObject()->bind(<<END, undef, \$slotid);
+SELECT id
+  FROM slot
+ ORDER BY id DESC
+END
+while ($st->fetch())
+{
+  $html .= '<li>' . SlotLinkLarge($slotid) . "</li>\n";
+}
+$html .= <<END;
+</ul>
+END
+
+DoPage(\%opts, $html);

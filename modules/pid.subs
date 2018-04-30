@@ -1,0 +1,166 @@
+#!perl
+use strict;
+use warnings 'FATAL' => 'all';
+use JSON ();
+
+our (%INFO, $INSPECT_URL);
+
+sub SlotLinkLarge
+{
+  my ($id) = @_;
+  return '(oops, game not found)' unless $id;
+  
+  my ($disp, $added, $name, $auth, $vers, $level, $time, $points, $treasure) = DBObject()->select(<<END, $id);
+SELECT display_id, DATE_FORMAT(added, "%b %e, %Y"), name, author, game, level, elapsed, points, treasure
+  FROM slot
+ WHERE id = ?
+END
+  return "(oops, game $id not found)" unless $disp;
+
+  my $link = qq(<a href="$INSPECT_URL/$disp/">) .
+             Format($name || '(Untitled Game)') .
+             qq(</a>\n);
+
+  my $timestr = RelElapsed($time);
+  $points = 0 unless $points;
+  $treasure = sprintf('$%.1fK', $treasure / 10);
+  $link .= qq(<span class="slotsub">$timestr, $points points, $treasure in treasure</span>\n);
+
+  my %names = (
+    'full11' => '',
+    'full20' => '',
+    'demoA1' => ' (Demo A1)',
+    'demo20' => ' (Demo 2.0)',
+    );
+  $link .= qq(<span class="slotsub">&ldquo;) .
+           Format($INFO{$vers}{'levelinfo'}[$level]{'name'}) .
+           qq(&rdquo;$names{$vers}</span>\n);
+
+  $link .= qq(<span class="slotsub">);
+  $link .= Format($auth) . qq(, ) if $auth;
+  $link .= qq($added</span>\n);
+
+  return $link;
+}
+
+sub SlotLinkMedium
+{
+  my ($id) = @_;
+  return '(oops, game not found)' unless $id;
+  
+  my ($disp, $added, $name, $auth, $vers, $level) = DBObject()->select(<<END, $id);
+SELECT display_id, UNIX_TIMESTAMP(added), name, author, game, level
+  FROM slot
+ WHERE id = ?
+END
+  return "(oops, game $id not found)" unless $disp;
+
+  my $link = qq(<a href="$INSPECT_URL/$disp/">) .
+             Format($name || '(Untitled Game)') .
+             qq(</a>\n);
+
+  $link .= qq(<span class="slotsub">) .
+           RelTime($added);
+  $link .= qq( by ) . Format($auth) if $auth;
+  $link .= qq(</span>\n);
+
+  return $link;
+}
+
+sub RelTime
+{
+  my ($past) = @_;
+  
+  my $delta = time() - $past;
+
+  # thanks to Rick Measham,
+  # http://twitter.pbworks.com/w/page/1779897/RelativeTimeScripts
+  if($delta < 60) {
+      return 'less than a minute ago';
+  } elsif($delta < 120) {
+      return 'about a minute ago';
+  } elsif($delta < (45*60)) {
+      return int($delta / 60) . ' minutes ago';
+  } elsif($delta < (120*60)) {
+      return 'about an hour ago';
+  } elsif($delta < (24*60*60)) {
+      return 'about ' . int($delta / 3600) . ' hours ago';
+  } elsif($delta < (48*60*60)) {
+      return '1 day ago';
+  } elsif($delta < (45*86400)) {
+      return int($delta / 86400) . ' days ago';
+  } elsif($delta < (360*86400)) {
+      return int($delta / (30*86400)) . ' months ago';
+  } elsif($delta < (365*2*86400)) {
+      return '1 year ago';
+  } else {
+      return int($delta / (365.25*86400)) . ' years ago';
+  }
+}
+
+sub LoadPState
+{
+  my ($id) = @_;
+  
+  my $pstate = DBObject()->select(<<END, $id);
+SELECT json
+  FROM pstate
+ WHERE id = ?
+END
+  return defined($pstate) ? JSON::decode_json($pstate) : undef;
+}
+
+sub LoadLState
+{
+  my ($slotid, $level) = @_;
+  
+  my $lstate = DBObject()->select(<<END, [ $slotid, $level ]);
+SELECT l.json
+  FROM lstate l
+  JOIN slot_lstate sl ON (sl.lstate_id = l.id)
+ WHERE sl.slot_id = ?
+   AND sl.level = ?
+END
+  return defined($lstate) ? JSON::decode_json($lstate) : undef;
+}
+
+sub LoadMap
+{
+  my ($vers, $level) = @_;
+  
+  my $mstate = DBObject()->select(<<END, [ $vers, $level ]);
+SELECT m.json
+  FROM map m
+ WHERE m.game = ?
+   AND m.level = ?
+END
+  return defined($mstate) ? JSON::decode_json($mstate) : undef;
+}
+
+sub RelElapsed
+{
+  my ($elapsed) = @_;
+  
+  my $mins = int($elapsed / 3600);
+  if ($mins < 60) { return "$mins minutes"; }
+  if ($mins < 120) { return "1 hour"; }
+  my $hours = int($mins / 60);
+  if ($hours < 24) { return "$hours hours"; }
+  if ($hours < 48) { return "1 day"; }
+  my $days = int($hours / 24);
+  return "$days days";
+}
+
+sub FileName
+{
+  my ($name) = @_;
+  $name = '' unless defined $name;
+  $name =~ s/[^A-Za-z0-9\-]+/_/g;
+  $name =~ s/^_+//;
+  $name =~ s/_+$//;
+  $name = 'Untitled_Game' unless length $name;
+  return $name . '.pidsave';
+}
+
+# end file
+1;

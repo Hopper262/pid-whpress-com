@@ -1,0 +1,5 @@
+Options -Indexes +ExecCGI
+DirectoryIndex map
+<FilesMatch "^[^.]+$">
+  SetHandler cgi-script
+</FilesMatch>

@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+require './modules/pid.ph';
+
+our ($ROOT, $MAP_URL);
+
+my $pinfo = CGObject()->path_info();
+if ($pinfo eq '/' || $pinfo eq '/index.html')
+{
+  Redirect("$MAP_URL/demo20/");
+}
+elsif ($pinfo =~ m!^/level(\d\d)\.html$!)
+{
+  Redirect("$MAP_URL/demo20/level0$1.html");
+}
+NotFound();

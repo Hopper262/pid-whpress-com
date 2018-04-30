@@ -1,0 +1,74 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+require './modules/pid.ph';
+require './modules/parse.subs';
+
+our ($DOWNLOAD_URL);
+
+my $cg = CGObject();
+my $db = DBObject();
+
+my (undef, $disp, $filename) = split('/', $cg->path_info());
+NotFound() unless $disp;
+my ($slotid, $name, $vers, $pstateid) = $db->select(<<END, $disp);
+SELECT id, name, game, pstate_id
+  FROM slot
+ WHERE display_id = ?
+END
+NotFound() unless $slotid;
+$filename = FileName($name) unless length $filename;
+my $pdata = $db->select(<<END, $pstateid);
+SELECT data
+  FROM pstate
+ WHERE id = ?
+END
+NotFound() unless $pdata;
+
+my $a1demo = ($vers eq 'demoA1') ? 1 : 0;
+my $levct = ($vers =~ /^demo/) ? 3 : 25;
+
+SetWriteSource();
+if ($a1demo)
+{
+  WriteRaw($pdata);
+}
+else
+{
+  WritePStr(128, $name);
+  WritePadding(128 * 9);
+  for my $i (1..$levct)
+  {
+    WriteSint16($i - 1);
+  }
+  WritePadding(2 * (25 - $levct));
+  WritePadding(2 * 25 * 9);
+  
+  substr($pdata, 4, 2, "\0\0"); # replace slot index
+  WriteRaw($pdata);
+  WritePadding(2876 * 9);
+}
+
+for my $i (1..$levct)
+{
+  my $ldata = $db->select(<<END, [ $slotid, $i - 1 ]);
+SELECT l.data
+  FROM lstate l
+  JOIN slot_lstate sl ON (sl.lstate_id = l.id)
+ WHERE sl.slot_id = ?
+   AND sl.level = ?
+END
+  PageError("Failed to read level state for $slotid") unless $ldata;
+  WriteRaw($ldata);
+}
+
+if ($a1demo)
+{
+  WritePadding(6);
+}
+
+my @head = ('Status: 200 OK',
+    'Content-Type: application/octet-stream',
+    'Content-Disposition: attachment; filename=' . $filename);
+print join("\015\012", @head) . "\015\012\015\012";
+print GetWriteData();

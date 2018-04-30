@@ -1,0 +1,487 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+use POSIX ();
+require './modules/pid.ph';
+
+our ($DOWNLOAD_URL, $INSPECT_URL, $MAP_URL, %INFO);
+
+my $cg = CGObject();
+my $db = DBObject();
+
+my (undef, $disp) = split('/', $cg->path_info());
+Redirect("$INSPECT_URL/full20/") unless $disp;
+my ($slotid, $name, $author, $added, $vers, $pstateid, $curlevel) = $db->select(<<END, $disp);
+SELECT id, name, author, DATE_FORMAT(added, '%M %e, %Y'), game, pstate_id, level
+  FROM slot
+ WHERE display_id = ?
+END
+NotFound() unless $slotid;
+my $pstate = LoadPState($pstateid);
+NotFound() unless $pstate;
+my $lstate = LoadLState($slotid, $curlevel);
+NotFound() unless $lstate;
+
+our $INF = $INFO{$vers};
+my $a1demo = ($vers eq 'demoA1');
+
+$name = 'Untitled Game' unless $name;
+$author = 'Anonymous' unless $author;
+
+my %version_names = (
+  'full11' => 'Pathways 1.1',
+  'full20' => 'Pathways 2.0',
+  'demoA1' => 'Demo A1',
+  'demo20' => 'Demo 2.0',
+  );
+my $filename = FileName($name);
+my $byline = qq(added $added<br>played on $version_names{$vers}  by $author <br><a href="$DOWNLOAD_URL/$disp/$filename">Download</a>);
+       
+my %opts = (
+  'Title' => $name,
+  'CSS' => <<END,
+P { margin: 6px 20px; }
+DIV#head H1 { text-transform: none; }
+H2 { margin: 24px 0 6px; }
+END
+  'PreHead' => <<END,
+<p class="byline">$byline</p>
+END
+  );
+my $html = '';
+
+$html .= '<h2>Status:</h2>';
+{
+  my $timestr = POSIX::strftime('%A, %H%M (%-l:%M:%S.!!! %p)', localtime(299580 + int($pstate->{'time'} / 60)));
+  $timestr =~ s/!!!/sprintf('%02d', ($pstate->{'time'} % 60))/e;
+  $html .= '<p>' . $timestr . '</p>';
+  
+  $html .= sprintf('<p>Health: %.1f of %.1f</p>',
+              $pstate->{'health'}[0]{'current'} / 10,
+              $pstate->{'health'}[0]{'max'} / 10);
+
+  unless ($a1demo)
+  {
+    my $ir = $pstate->{'items_in_hand'}[0];
+    my $invref = $pstate->{'inventory'}[0]{'item'};
+    
+    my $crystal_in_hand = 'No crystal readied';
+    my $crystal = $ir->{'crystal'};
+    if ($crystal >= 0)
+    {
+      my $cur_charge = $ir->{'crystal_charge'};
+      my $inv = IndexOf($invref, $crystal);
+      my $charge = $inv->{'contains'};
+      my $ii = $INF->{'iteminfo'}[$inv->{'type'}];
+      $crystal_in_hand = Format($ii->{'name'}) . CrystalUses($inv, $ii);
+      
+      $html .= sprintf('<p>Power: %d of %d</p>',
+                  $cur_charge, $charge);
+    }
+    else
+    {
+      $html .= sprintf('<p>Power: not applicable</p>');
+    }
+    
+    my $weapon_in_hand = 'No weapon readied';
+    my $weapon = $ir->{'weapon'};
+    if ($weapon >= 0)
+    {
+      my $inv = IndexOf($invref, $weapon);
+      my $ii = $INF->{'iteminfo'}[$inv->{'type'}];
+      $weapon_in_hand = Format($ii->{'name'});
+      if ($ir->{'weapon_status'} > 0)
+      {
+        $weapon_in_hand .= ' (currently in use)';
+      }
+    }
+    $html .= sprintf('<p>%s &nbsp; &nbsp; %s</p>', $weapon_in_hand, $crystal_in_hand);
+  }
+}
+
+$html .= '<h2>Progress:</h2>';
+{
+  my $lr = $pstate->{'location'}[0];
+  my $curlevel = $lr->{'level'};
+  my $li = $INF->{'levelinfo'}[$curlevel];
+  
+  my $elevation = sprintf('%.1fm', $li->{'elevation'});
+  my $above = 'above';
+  if ($elevation =~ s/^\-//)
+  {
+    $above = 'below';
+  }
+  $html .= sprintf('<p>You are %s %s ground. You have scored %d of 41 points and recovered $%.1fK in treasure.</p>',
+      $elevation, $above,
+      $pstate->{'points'}, $pstate->{'treasure'} / 10
+      );
+  
+  $html .= sprintf('<p>You are currently on &ldquo;%s&rdquo; (%.2f, %.2f), facing %s.</p>',
+        qq(<a href="$MAP_URL/$disp/level) . sprintf('%03d', $curlevel) . qq(.html">) . Format($li->{'name'}) . qq(</a>),
+        $lr->{'x'}, $lr->{'y'},
+        Direction($lr->{'direction'}) );
+  
+  $html .= sprintf('<p>You are %s-handed. You are %s using your flashlight. You are %s using Infra-Red goggles.</p>',
+        ($pstate->{'left_handed'} ? 'left' : 'right'),
+        ($pstate->{'vision'}[0]{'flashlight'} ? '' : 'not'),
+        ($pstate->{'vision'}[0]{'ir_goggles'} ? '' : 'not') );
+
+  my $monct = $pstate->{'active_monsters'}[0]{'total'};
+  if ($monct)
+  {
+    $html .= sprintf('<p>You are being chased by %s:</p><ul>',
+                      Quant1('monster', $monct));
+    
+    my $mr = $pstate->{'active_monsters'}[0]{'monster1'};
+    
+    my $monlook = $lstate->{'monsters'}[0]{'monster'};
+    my $itemlook = $lstate->{'items'}[0]{'item'};
+    
+    for my $m (0..($monct - 1))
+    {
+      my $mstate = IndexOf($mr, $m);
+      my $mi = IndexOf($monlook, $mstate->{'monster_index'});
+      my $ii = IndexOf($itemlook, $mi->{'item'});
+      
+      $html .= sprintf('<li>%s - %d health (%.2f, %.2f)</li>',
+                        Format($INF->{'monsterinfo'}[$mi->{'type'}]{'name'}),
+                        $mi->{'health'},
+                        $ii->{'x'}, $ii->{'y'});
+    }
+    $html .= '</ul>';
+  }
+}
+
+$html .= '<h2>Weapon Proficiencies:</h2>';
+{
+  my $pr = $pstate->{'weapon_proficiencies'}[0]{'weapon'};
+  my $wi = $INF->{'weaponinfo'};
+  for my $i (0..6)
+  {
+    my $prs = IndexOf($pr, $i);
+    my $prof = $prs->{'proficiency'};
+    next unless $prof;
+    
+    $html .= sprintf('<p>%s: %s</p>',
+                $wi->{'train_weapons'}[$i],
+                $wi->{'train_levels'}[$prof],
+                );
+  }
+}
+
+$html .= '<h2>Inventory:</h2>';
+{
+  $html .= Inventory($pstate->{'inventory'}[0]{'item'}, $pstate->{'inventory'}[0]{'start'});
+}
+
+my ($carnage_total, $shots_total, $hits_total) = (0, 0, 0);
+unless ($a1demo)
+{
+  $html .= '<h2>Body Count:</h2>';
+  {
+    my $kr = $pstate->{'monster_kills'}[0]{'monster'};
+    for my $i (0..16)
+    {
+      my $km = IndexOf($kr, $i);
+      next unless $km;
+      my $kills = $km->{'kills'};
+      next unless $kills > 0;
+      
+      my $mi = $INF->{'monsterinfo'}[$i];
+      
+      if ($mi->{'skip_carnage'})
+      {
+        $html .= sprintf('<p>(%s: %d, does not count toward bonus)</p>',
+                    Format($mi->{'name'}), $kills);
+      }
+      else
+      {
+        $carnage_total += $kills;
+        $html .= sprintf('<p>%s: %d</p>',
+                    Format($mi->{'name'}), $kills);
+      }
+    }
+    $html .= sprintf('<p>Body Count: %d</p>', $carnage_total);
+  }
+  
+  $html .= '<h2>Damage:</h2>';
+  {
+    my $dr = $pstate->{'damage'}[0];
+    my $inflicted = $dr->{'inflicted'} || 0;
+    my $taken = $dr->{'taken'} || 0;
+    
+    $html .= sprintf('<p>Damage Inflicted: %d</p>', int($inflicted / 3));
+    $html .= sprintf('<p>Damage Taken: %d</p>', $taken);
+    
+    if ($taken)
+    {
+      my $ratio = ($inflicted / 3) / $taken;
+      $html .= sprintf('<p>Damage Ratio: %.2f</p>', int($ratio * 100) / 100);
+    }
+  }
+    
+  $html .= '<h2>Accuracy:</h2>';
+  {
+    my $sr = $pstate->{'weapon_shots'}[0]{'weapon'};
+    my $hr = $pstate->{'weapon_hits'}[0]{'weapon'};
+    my $wn = $INF->{'weaponinfo'}{'used_weapons'};
+    
+    for my $i (0..4)
+    {
+      my $si = IndexOf($sr, $i);
+      my $shots = $si ? $si->{'shots'} : 0;
+      if ($shots)
+      {
+        $shots_total += $shots;
+        my $hi = IndexOf($hr, $i);
+        my $hits = $hi ? $hi->{'hits'} : 0;
+        $hits_total += $hits;
+        
+        $html .= sprintf('<p>%s: %d%% (%d/%d)</p>',
+                    Format($wn->[$i]),
+                    int(($hits * 100) / $shots),
+                    $hits, $shots);
+      }
+    }
+    
+    if ($shots_total)
+    {
+      $html .= sprintf('<p>Overall Accuracy: %d%%</p>',
+                    int(($hits_total * 100) / $shots_total));
+    }
+  }
+  
+  $html .= '<h2>Score:</h2>';
+  {
+    my $car_bonus = int($carnage_total / 250);
+    $html .= sprintf('<p>Carnage Bonus (+1 per 250 bodies): +%d</p>',
+                      $car_bonus);
+    
+    my $acc1 = $shots_total ? int(($hits_total * 10) / $shots_total) : 0;
+    my $acc_bonus = $acc1 - 4;
+    $acc_bonus = 0 if $acc_bonus < 0;
+    $html .= sprintf('<p>Accuracy Bonus (+1 per 10%% over 40%%): +%d</p>',
+                      $acc_bonus);
+    
+    my $treasure = $pstate->{'treasure'};
+    my $tre_bonus = int($treasure / 1000);
+    if ($treasure > 0)
+    {
+      $html .= sprintf('<p>(Treasure Bonus (+1 per $100K): +%d, not counted until end)</p>',
+                        $tre_bonus);
+    }
+    
+    my $pt_total = $pstate->{'points'} + $car_bonus + $acc_bonus;
+    $html .= sprintf('<p>Total Score: %d</p>', $pt_total);
+  }
+
+  $html .= '<h2>Items picked up:</h2>';
+  {
+    my @items;
+    my $ir = $pstate->{'items_taken'}[0]{'item_taken'};
+    if ($ir)
+    {
+      for my $item (@$ir)
+      {
+        my $index = $item->{'index'};
+        next unless $index >= 0;
+        my $ii = $INF->{'iteminfo'}[$index];
+        next unless $ii;
+        push(@items, '<li>' . Format($ii->{'name'}) . '</li>');
+      }
+    }
+    if (scalar @items)
+    {
+      $html .= join("\n", '<ul>', @items, '</ul>');
+    }
+    else
+    {
+      $html .= '<p>No items picked up.</p>';
+    }
+  }
+  
+  $html .= '<h2>Single-use triggers encountered:</h2>';
+  {
+    my @items;
+    my $ir = $pstate->{'triggers_set'}[0]{'trigger_set'};
+    if ($ir)
+    {
+      for my $item (@$ir)
+      {
+        my $index = $item->{'index'};
+        next unless $index >= 0;
+        my $ii = $INF->{'sectorinfo'}[4]{'sub'}[$index];
+        next unless $ii;
+        push(@items, '<li>' . Format($ii->{'name'}) . '</li>');
+      }
+    }
+    if (scalar @items)
+    {
+      $html .= join("\n", '<ul>', @items, '</ul>');
+    }
+    else
+    {
+      $html .= '<p>No single-use triggers encountered.</p>';
+    }
+  }
+  
+  $html .= '<h2>Memories of the dead:</h2>';
+  {
+    my @items;
+    my $ir = $pstate->{'corpse_variables'}[0]{'corpse_variable'};
+    if ($ir)
+    {
+      for my $item (@$ir)
+      {
+        my $index = $item->{'index'} - 128;
+#         next unless $index >= 0;
+        my $value = $item->{'value'};
+#         next unless $value != 0;
+        my $ii = $INF->{'corpseinfo'}[$index];
+        next unless $ii;
+        push(@items, sprintf('<li>%s: 0x%08x</li>',
+                        Format($ii->{'name'}), $value));
+      }
+    }
+    if (scalar @items)
+    {
+      $html .= join("\n", '<ul>', @items, '</ul>');
+    }
+    else
+    {
+      $html .= '<p>None of the dead remember you.</p>';
+    }
+  }
+} # end a1demo
+
+$html .= qq(</div>\n);
+
+DoPage(\%opts, $html);
+#######
+
+
+sub Inventory
+{
+  my ($invref, $idx) = @_;
+  
+  my @list = ();
+  
+  while ($idx >= 0)
+  {
+    my $item = IndexOf($invref, $idx);
+    last unless $item;
+    last if $item->{'type'} < 0;
+  
+    my $ii = $INF->{'iteminfo'}[$item->{'type'}];
+    last unless $ii;
+  
+    my $html = Format($ii->{'name'});
+    if ($item->{'active'} == 2)
+    {
+      $html .= ' (open)';
+    }
+    elsif ($item->{'active'} == 1)
+    {
+      $html .= Format($ii->{'active'});
+    }
+    
+    $html .= AmmoRounds($item, $ii) . CrystalUses($item, $ii);
+    if ($ii->{'category'} eq 'container')
+    {
+      $html .= Inventory($invref, $item->{'contains'});
+    }
+    push(@list, "<li>$html</li>");
+    $idx = $item->{'next'};
+  }
+  
+  if (scalar @list)
+  {
+    return join("\n", '<ul>', @list, '</ul>');
+  }
+  return '';
+}
+
+sub CrystalUses
+{
+  my ($inv, $ii) = @_;
+  
+  return '' unless $ii->{'category'} eq 'crystal';
+  return '' unless $inv->{'type'} > 64;
+  
+  my $left = 0;
+  my $proj = $inv->{'contains'};
+  my ($inc, $max) = ($ii->{'increment'}, $ii->{'maximum'});
+  $max -= $inc;
+  while ($proj <= $max)
+  {
+    $left++;
+    $proj += $inc;
+  }
+  return ' (' . Quant1('use', $left) . ' left)';
+}
+
+sub AmmoRounds
+{
+  my ($inv, $ii) = @_;
+  
+  return '' unless $ii->{'category'} =~ /^ammo/;
+  my $rounds = $inv->{'contains'};
+  return ' (empty)' unless $rounds > 0;
+  return '' if ($ii->{'category'} eq 'ammo2' && $rounds == 1);
+  return ' (x' . $rounds . ')';
+}
+
+sub Quant
+{
+  my ($name, $quantity) = @_;
+  return $name if $quantity == 1;
+  $quantity = 'No' if $quantity == 0;
+  return $quantity . ' ' . Plural($name);
+}
+
+sub Quant1
+{
+  my ($name, $quantity) = @_;
+  return '1 ' . $name if $quantity == 1;
+  $quantity = 'No' if $quantity == 0;
+  return $quantity . ' ' . Plural($name);
+}
+
+sub Plural
+{
+  my ($str) = @_;
+  
+  return $INF->{'plurals'}{$str} || ($str . 's');
+}
+
+sub IndexOf
+{
+  my ($ref, $idx) = @_;
+  
+  for my $r (@$ref)
+  {
+    if ($r->{'index'} == $idx)
+    {
+      return $r;
+    }
+  }
+  return undef;
+}
+
+sub Direction
+{
+  my ($facing) = @_;
+  
+  $facing = (($facing || 0) % 512); # just in case
+  
+  return 'east'       if $facing <  32;
+  return 'southeast'  if $facing <  96;
+  return 'south'      if $facing < 160;
+  return 'southwest'  if $facing < 224;
+  return 'west'       if $facing < 288;
+  return 'northwest'  if $facing < 352;
+  return 'north'      if $facing < 416;
+  return 'northeast'  if $facing < 480;
+  return 'east';
+}
+  

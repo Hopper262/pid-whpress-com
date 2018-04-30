@@ -1,0 +1,132 @@
+@import url("MyFontsWebfontsKit.css");
+
+H1, H2, H3, H4, H5, H6 { font-weight: normal; }
+
+HTML, DIV#head, DIV#foot {
+  background-color: #645F44;
+  color: #F5F3E4;
+}
+
+BODY { 
+  background-color: #ded7a9;
+  color: #383317;
+  font-family: QuadratSerial;
+  font-size: 14px;
+  margin: 0;
+  padding: 0;
+}
+
+P.error { text-align: center; }
+
+DIV#head {
+  padding: 30px 50px 30px 70px;
+  margin: 0;
+  position: relative;
+}
+DIV#head H1 {
+  text-align: left;
+  text-transform: uppercase;
+  font-size: 30px;
+  margin: 0;
+  padding: 0;
+}
+DIV#head P.tagline {
+  position: absolute;
+  left: 70px;
+  top: 15px;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  color: #CBC7AA;
+}
+DIV#content {
+  margin: 30px 20px 30px 50px;
+  padding: 0;
+}
+DIV#foot {
+  padding: 15px 50px 10px 50px;
+  margin: 0;
+}
+DIV#foot A:link, DIV#foot A:visited {
+  color: #F5F3E4;
+  text-decoration: none;
+}
+DIV#foot A:hover {
+  color: #F5F3E4;
+  text-decoration: underline;
+}
+DIV#head A:link, DIV#head A:visited, DIV#head A:hover {
+  color: #F5F3E4;
+  text-decoration: underline;
+}
+
+
+P.more {
+  margin-left: 20px;
+}
+H3 {
+  text-transform: uppercase;
+  padding: 0 0 12px 20px;
+  margin: 0;
+}
+
+DIV#formblockouter {
+  float: left;
+  width: 300px;
+}
+DIV#formblockinner {
+  background-color: #CBC7AA;
+  border-left: solid 1px #B9B38D;
+  border-top: solid 1px #B9B38D;
+  padding: 10px 19px;
+  margin: 6px 0;
+}
+DIV#uploadblockouter {
+  margin-left: 350px;
+}
+
+LABEL {
+  font-size: 12px;
+}
+
+UL.uploads {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+UL.uploads LI A {
+  font-size: 15px;
+}
+UL.uploads LI {
+  float: left;
+  width: 250px;
+  padding: 10px 20px;
+  margin: 6px 12px 6px 0;
+  background-color:
+  #E0DBBC;
+  border-right:
+  solid 1px #B9B38D;
+  border-bottom:
+  solid 1px #B9B38D;
+  cursor: pointer;
+}
+UL.uploads LI:hover {
+  background-color: #F5F3E4;
+}
+SPAN.slotsub {
+  display: block;
+  font-size: 12px;
+}
+
+SPAN#submit_wait {
+  font-size: 12px;
+}
+
+P.byline {
+  float: right;
+  text-align: right;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: white;
+}

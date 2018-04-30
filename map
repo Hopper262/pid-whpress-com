@@ -1,0 +1,868 @@
+#!/usr/bin/perl
+use strict;
+use warnings 'FATAL' => 'all';
+require './modules/pid.ph';
+
+our ($ROOT, $STYLE, $MAP_URL, $INSPECT_URL, %INFO);
+
+my $cg = CGObject();
+my $db = DBObject();
+
+my (undef, $disp, $rawlev) = split('/', $cg->path_info());
+$disp = 'full20' if !$disp;
+
+our ($slotid, $slotname, $author, $added, $vers, $pstateid, $curlevel) = $db->select(<<END, $disp);
+SELECT id, name, author, DATE_FORMAT(added, '%M %e, %Y'), game, pstate_id, level
+  FROM slot
+ WHERE display_id = ?
+END
+NotFound() unless $slotid;
+
+our $dim = 12; # pixels per grid square
+our $INF = $INFO{$vers};
+our $IMG = "$ROOT/$vers/";
+
+our $light = 0;
+our $level = undef;
+if ($rawlev && $rawlev =~ /^(level|light)(\d+)\.html$/)
+{
+  $light = ($1 eq 'light') ? 1 : 0;
+  $level = sprintf("%03d", 0 + $2);
+}
+
+unless (defined $level)
+{
+  # handle index pages
+  my %opts = (
+    'Head' => "Pathways Into Darkness ($slotname)",
+    'Title' => '',
+    'CSS_Url' => [ "$STYLE/style.css", "$STYLE/mapindex.css" ],
+    );
+  
+  my $html = '';
+  $html = <<END if ($vers =~ /^full/);
+<h1 id="logo">Pathways into Darkness</h1>
+<div class="decor">
+<div class="left first"><h2 style="color: #F5F3E4"><span>The</span>Pyramid</h2>
+<ul>
+<li>@{[ LevelLink(0) ]}</li>
+<li>@{[ LevelLink(1) ]}</li>
+<li>@{[ LevelLink(2) ]}</li>
+<li>@{[ LevelLink(3) ]}</li>
+<li>@{[ LevelLink(4) ]}</li>
+<li>@{[ LevelLink(5) ]}</li>
+<li>@{[ LevelLink(6) ]}</li>
+</ul></div>
+<div class="right"><h2 style="color: #ded7a9"><span>The</span>Catacombs</h2>
+<ul>
+<li>@{[ LevelLink(7) ]}</li>
+<li>@{[ LevelLink(8) ]}</li>
+<li>@{[ LevelLink(9) ]}</li>
+<li>@{[ LevelLink(14) ]}</li>
+<li>@{[ LevelLink(10) ]}</li>
+<li>@{[ LevelLink(11) ]}</li>
+<li>@{[ LevelLink(12) ]}</li>
+<li>@{[ LevelLink(13) ]}</li>
+<li>@{[ LevelLink(15) ]}</li>
+</ul></div>
+<div class="left"><h2 style="color: #B9B38D"><span>The</span>Pit</h2>
+<ul>
+<li>@{[ LevelLink(16) ]}</li>
+<li>@{[ LevelLink(17) ]}</li>
+<li>@{[ LevelLink(18) ]}</li>
+<li>@{[ LevelLink(19) ]}</li>
+</ul></div>
+<div class="right"><h2 style="color: #9A936D"><span>The</span>Hole</h2>
+<ul>
+<li>@{[ LevelLink(20) ]}</li>
+<li>@{[ LevelLink(21) ]}</li>
+<li>@{[ LevelLink(22) ]}</li>
+<li>@{[ LevelLink(23) ]}</li>
+<li>@{[ LevelLink(24) ]}</li>
+</ul></div>
+</div>
+
+<p class="footer">
+Full 2.0
+&#x00B7; &#x00B7; &#x00B7;
+<a href="$MAP_URL/demoA1/">Demo A1</a>
+&#x00B7; &#x00B7; &#x00B7;
+<a href="$MAP_URL/demo20/">Demo 2.0</a>
+</p>
+END
+  $html = <<END if $vers eq 'demoA1';
+<h1 id="logo">Pathways into Darkness</h1>
+<div class="decor decordemoA1">
+<div class="right rightdemoA1"><h2 style="color: #ded7a9"><span>7.7.1993</span>Demo A1</h2>
+<ul>
+<li>@{[ LevelLink(0) ]}</li>
+<li>@{[ LevelLink(1) ]}</li>
+<li>@{[ LevelLink(2) ]}</li>
+</ul></div>
+<div style="clear: both"></div>
+</div>
+
+<p class="footer">
+<a href="$MAP_URL/full20/">Full 2.0</a>
+&#x00B7; &#x00B7; &#x00B7;
+Demo A1
+&#x00B7; &#x00B7; &#x00B7;
+<a href="$MAP_URL/demo20/">Demo 2.0</a>
+</p>
+END
+  $html = <<END if $vers eq 'demo20';
+<h1 id="logo">Pathways into Darkness</h1>
+<div class="decor decordemo20">
+<div class="left leftdemo20"><h2 style="color: #ded7a9"><span>4.7.1994</span>Demo 2.0</h2>
+<ul>
+<li>@{[ LevelLink(0) ]}</li>
+<li>@{[ LevelLink(1) ]}</li>
+<li>@{[ LevelLink(2) ]}</li>
+</ul></div>
+<div style="clear: both"></div>
+</div>
+
+<p class="footer">
+<a href="$MAP_URL/full20/">Full 2.0</a>
+&#x00B7; &#x00B7; &#x00B7;
+<a href="$MAP_URL/demoA1/">Demo A1</a>
+&#x00B7; &#x00B7; &#x00B7;
+Demo 2.0
+</p>
+END
+  
+  DoPage(\%opts, $html);
+}
+
+my $pstate = LoadPState($pstateid);
+NotFound() unless $pstate;
+my $dp = LoadLState($slotid, $level);
+NotFound() unless $dp;
+my $mp = LoadMap($vers, $level);
+NotFound() unless $mp;
+
+{
+  my $levinfo = $INF->{'levelinfo'}[$level];
+  my $name =  Format($levinfo->{'name'});
+  my $leveltype = Format($levinfo->{'section'});
+  my $elevation = sprintf('%.1fm', $levinfo->{'elevation'});
+  
+  my $gridsize = 34 * $dim;
+  
+  my %opts = (
+    'Head' => "$name ($slotname)",
+    'Title' => '',
+    'CSS_Url' => "$STYLE/style.css",
+    'CSS_Screen_Url' => ($light ? "$STYLE/light.css" : "$STYLE/full.css"),
+    'CSS_Print_Url' => "$STYLE/print.css",
+    'JS_Url' => "$STYLE/style.js",
+    );
+    
+  my $html = <<END;
+<div id="levelselectbox">
+<div id="levelselectlist">
+END
+
+  for my $sec (@{ $INF->{'levelsections'} })
+  {
+    my $secname = Format($sec->[0]);
+    $html .= <<END;
+<div class="levelcol"><h4>$secname</h4>
+<ul>
+END
+    for my $lev (@{ $sec->[1] })
+    {
+      $html .= <<END;
+<li>@{[ LevelLink($lev) ]}</li>
+END
+    }
+    $html .= <<END;
+</ul></div>
+END
+  }
+  
+  $html .= <<END;
+<div id="levelselectend"></div>
+</div>
+<div id="levelselecttab">Levels &#x00BB;</div>
+<div id="styleswitcher">
+END
+  $html .= $light ? <<END1 : <<END2;
+<a id="switchfull" href="$MAP_URL/$disp/level@{[ sprintf('%03d', $level) ]}.html">Switch to full version</a>
+END1
+<a id="switchlight" href="$MAP_URL/$disp/light@{[ sprintf('%03d', $level) ]}.html">Switch to light version</a>
+END2
+  $html .= <<END;
+</div>
+</div>
+
+<h1>$name</h1>
+<h3 class="subhead">$leveltype, Elevation: $elevation</h3>
+
+<div id="map">
+<img id="map_bg" src="$ROOT/$vers/maps/level$level.png" width="$gridsize" height="$gridsize">
+<div class="mapoverlay"><img id="mapgrid" src="$STYLE/grid12.png" width="$gridsize" height="$gridsize"></div>
+<div class="map_indicators">
+END
+  
+  my $doorlist = $mp->{'doors'}[0]{'door'};
+  my $ladderlist = $mp->{'level_changes'}[0]{'level_change'};
+  my $sectorlist = $mp->{'sectors'}[0]{'sector'};
+  my $spawnlist = $mp->{'monsters'}[0]{'monster'};
+  my %respawns;
+  for my $s (@$spawnlist)
+  {
+    my $type = $s->{'type'};
+    if ($type >= 0)
+    {
+      $respawns{$type} = $s->{'frequency'};
+    }
+  }
+  
+  my $monsterlist = $dp->{'monsters'}[0]{'monster'};
+  my $itemlist = $dp->{'items'}[0]{'item'};
+  
+  
+  my $assignlist = $dp->{'assigns'}[0]{'assign'};
+  my $pickuplist = $dp->{'pickups'}[0]{'pickup'};
+  my @pickups;
+  for my $a (@$assignlist)
+  {
+    my $ap = IndexOf($pickuplist, $a->{'pickup'});
+    my $ai = IndexOf($itemlist, $a->{'item'});
+    $html .= GridSpot($ai->{'x'}, $ai->{'y'}, 'item_indicator', 'item_indicator_' . $ap->{'type'});
+    
+    my $ii = $INF->{'iteminfo'}[$ap->{'type'}];
+        
+    my $cp;
+    if ($ii->{'category'} eq 'container' && $ap->{'quantity'} >= 0)
+    {
+      $cp = IndexOf($pickuplist, $ap->{'quantity'});
+      $html .= GridSpot($ai->{'x'}, $ai->{'y'}, 'item_indicator', 'item_indicator_' . $cp->{'type'});
+    }
+    push(@pickups, [ $ap, $ai, $cp, -1 ]);
+  }
+  
+  my (@ladders, @teles, @secrets, @doors, @doortriggers, @corpses, @triggers, @saves);
+  my @grid;
+  my $linkhtml = '';
+  
+  for my $sector (@$sectorlist)
+  {
+    my $type = $sector->{'type'};
+    next if $type == 0;
+    
+    my $col = $sector->{'col'};
+    my $row = $sector->{'row'};
+    $grid[$col][$row] = $type;
+    my $typename = $INF->{'sectorinfo'}[$type]{'name'};
+    
+    if ($type == 2)
+    {
+      my $door = IndexOf($doorlist, $sector->{'extra'});
+      push(@doors, [ $door, $col, $row, [] ]);
+    }
+    elsif ($type == 3)
+    {
+      my $ladder = IndexOf($ladderlist, $sector->{'extra'});
+      my $ltype = $ladder->{'type'};
+      if ($ltype >= 0 && $ltype <= 3)
+      {
+        $typename = 'Ladder up' if $ltype == 0;
+        $typename = 'Ladder down' if $ltype == 1;
+        $typename = 'Teleporter' if ($ltype == 2 || $ltype == 3);
+
+        my $simpletype = $typename;
+        
+        $typename .= ' to ';
+        my $dlevel = $ladder->{'level'};
+        my $intra = ($dlevel == $level);
+        unless ($intra)
+        {
+          $typename .= LevelName($dlevel);
+          push(@ladders, [ $ladder, $col, $row, $simpletype ]);
+          $linkhtml .= GridLevelLink($col, $row, $dlevel, $typename);
+        }
+        else
+        {
+          $typename .= '(' . $ladder->{'x'} . ', ' . $ladder->{'y'} . ')';
+          push(@teles, [ $ladder, $col, $row, $simpletype ]);
+        }
+      }
+    }
+    elsif ($type == 4)
+    {
+      my $extra = $sector->{'extra'};
+      push(@doortriggers, [ $extra, $col, $row ]);
+    }
+    elsif ($type == 5)
+    {
+      push(@secrets, [ $sector->{'extra'}, $col, $row ]);
+    }
+    elsif ($type == 6)
+    {
+      my $which = $sector->{'extra'};
+      $which -= 172 if $which >= 200;
+      my @items;
+      my $pitem = $sector->{'item'};
+      while (my $pickup = PickupForItem(\@pickups, $pitem))
+      {
+        unshift(@items, $pickup);
+        $pickup->[3] = $which;
+        $pitem = $pickup->[1]{'next'};
+      }
+      push(@corpses, [ $which, $col, $row, \@items ]);
+    }
+    elsif ($type == 8)
+    {
+      push(@triggers, [ $sector->{'extra'}, $col, $row ]);
+    }
+    elsif ($type == 9)
+    {
+      push(@saves, [ $col, $row ]);
+    }
+    
+    my $xv = (($col + 1) * $dim) . 'px';
+    my $yv = (($row + 1) * $dim) . 'px';
+    $typename = " $typename" if $typename;
+#     $html .= <<END;
+# <div class="maphighlight" style="position: absolute; left: $xv; top: $yv" title="($col, $row)$typename"></div>
+# END
+  }
+  
+  # Doors
+  for my $idx (0..(scalar(@doors)-1))
+  {
+    my $door = $doors[$idx];
+    my ($info, $col, $row, $triggers) = @$door;
+    
+    $html .= GridSpot($col, $row, 'door_indicator', 'door_indicator_' . $idx);
+    $html .= GridSpot($col, $row, 'door_' . $idx);
+    if (($grid[$col][$row - 1] || 0) == 4)
+    {
+      push(@$triggers, 'north');
+      $html .= GridSpot($col, $row - 1, 'door_trigger_indicator', 'door_indicator_' . $idx);
+    }
+    if (($grid[$col][$row + 1] || 0) == 4)
+    {
+      push(@$triggers, 'south');
+      $html .= GridSpot($col, $row + 1, 'door_trigger_indicator', 'door_indicator_' . $idx);
+    }
+    if (($grid[$col - 1][$row] || 0) == 4)
+    {
+      push(@$triggers, 'west');
+      $html .= GridSpot($col - 1, $row, 'door_trigger_indicator', 'door_indicator_' . $idx);
+    }
+    if (($grid[$col + 1][$row] || 0) == 4)
+    {
+      push(@$triggers, 'east');
+      $html .= GridSpot($col + 1, $row, 'door_trigger_indicator', 'door_indicator_' . $idx);
+    }
+  }
+  
+  # Secret doors
+  for my $idx (0..(scalar(@secrets)-1))
+  {
+    my $secret = $secrets[$idx];
+    my ($facing, $col, $row) = @$secret;
+    $html .= GridSpot($col, $row, 'trigger_indicator', 'door_secret_indicator', 'door_secret_indicator_' . $idx);
+    $html .= GridSpot($col, $row, 'door_secret_' . $idx);
+  }
+  
+  # Items
+  my %items;
+  for my $p (@pickups)
+  {
+    my ($ap, $ai, $cp, $corpse) = @$p;
+    my $col = int($ai->{'x'});
+    my $row = int($ai->{'y'});
+    
+    for my $pick ($ap, $cp)
+    {
+      next unless $pick;
+      my $type = $pick->{'type'};
+      $items{$type} = [] unless defined $items{$type};
+      $html .= GridSpot($col, $row, 'item_indicator', 'item_indicator_' . $type);
+      
+      push(@{ $items{$type} }, [ $col, $row, $pick->{'quantity'} || 0,
+                                 ($pick == $ap) ? -1 : $ap->{'type'},
+                                 $corpse ]);
+    }
+  }
+  
+  my %dtriggers;
+  for my $dt (@doortriggers)
+  {
+    my ($type, $col, $row) = @$dt;
+    $dtriggers{$type} = [] unless defined $dtriggers{$type};
+    $html .= GridSpot($col, $row, 'trigger_indicator', 'door_trigger_indicator', 'door_trigger_indicator_' . $type);
+    push(@{ $dtriggers{$type} }, [ $col, $row ]);
+  }
+  
+  # Corpses
+  for my $corpse (@corpses)
+  {
+    my ($which, $col, $row, $pickups) = @$corpse;
+    $html .= GridSpot($col, $row, 'corpse_indicator', 'corpse_indicator_' . $which);
+    $html .= GridSpot($col, $row, 'corpse_' . $which);
+  }
+  
+  # Static monsters
+  my %monsters;
+  for my $m (@{ $dp->{'monsters'}[0]{'monster'} })
+  {
+    my $type = $m->{'type'};
+    $monsters{$type} = [] unless defined $monsters{$type};
+    
+    my $item = IndexOf($itemlist, $m->{'item'});
+    my $x = int($item->{'x'});
+    my $y = int($item->{'y'});
+    $html .= GridSpot($x, $y, 'monster_indicator', 'monster_indicator_' . $type);
+    
+    push(@{ $monsters{$type} }, [ $x, $y ]);
+  }
+  
+  # Exits
+  for my $ladder (@ladders)
+  {
+    my ($info, $col, $row, $type) = @$ladder;
+    $html .= GridSpot($col, $row, 'ladder_indicator', 'ladder_indicator_' . $info->{'index'});
+    $html .= GridSpot($col, $row, 'ladder_' . $info->{'index'});
+  }
+  
+  # Intra-level teleporters
+  for my $tele (@teles)
+  {
+    my ($info, $col, $row, $type) = @$tele;
+    $html .= GridSpot($col, $row, 'tele_indicator', 'ladder_indicator_' . $info->{'index'});
+    $html .= GridSpot($info->{'x'}, $info->{'y'}, 'tele_indicator', 'ladder_dest_indicator', 'ladder_indicator_' . $info->{'index'});
+    $html .= GridSpot($col, $row, 'ladder_' . $info->{'index'});
+  }
+  
+  # Save runes
+  for my $idx (0..(scalar(@saves)-1))
+  {
+    my $save = $saves[$idx];
+    my ($col, $row) = @$save;
+    $html .= GridSpot($col, $row, 'trigger_indicator', 'save_indicator', 'save_indicator_' . $idx);
+    $html .= GridSpot($col, $row, 'save_' . $idx);
+  }
+
+  # Other triggers
+  for my $idx (0..(scalar(@triggers)-1))
+  {
+    my $trigger = $triggers[$idx];
+    my ($type, $col, $row) = @$trigger;
+    $html .= GridSpot($col, $row, 'trigger_indicator', 'other_trigger_indicator', 'other_trigger_indicator_' . $idx);
+    $html .= GridSpot($col, $row, 'other_trigger_' . $idx);
+  }
+
+  $html .= <<END if $linkhtml;
+</div>
+<div class="level_links">
+$linkhtml
+END
+  $html .= <<END;
+</div></div>
+<div id="summary">
+END
+
+  # Items
+  if (scalar keys %items)
+  {
+    my $descs = '';
+    $html .= qq(<h3 class="item_all">Items</h3><ul class="item_summary">\n);
+    for my $type (sort keys %items)
+    {
+      my $ii = $INF->{'iteminfo'}[$type];
+      my ($name, $bitmap, $cat, $desc) = (Format($ii->{'name'}), $IMG . $ii->{'image'}, $ii->{'category'}, Format($ii->{'desc'}));
+      $descs .= <<END;
+<div id="itemdesc_$type" class="itemdesc popup">
+<div class="imgwrap">&nbsp;<img src="$bitmap">&nbsp;</div>
+<div class="name">$name</div>
+<div class="desc">$desc</div>
+</div>
+END
+      my $ct = scalar @{ $items{$type} };
+      my $quant = 0;
+      my @coordlist;
+      for my $item (sort { $a->[1] <=> $b->[1] || $a->[0] <=> $b->[0] } @{ $items{$type} })
+      {
+        my ($x, $y, $q, $parent, $corpse) = @$item;
+        my $desc = "($x,&nbsp;$y)";
+        if ($cat eq 'ammo')
+        {
+          $desc .= " x$q";
+        }
+        elsif ($cat eq 'crystal' && $type != 64)
+        {
+          my $left = 0;
+          my $proj = $q;
+          my ($inc, $max) = ($ii->{'increment'}, $ii->{'maximum'});
+          $max -= $inc;
+          while ($proj <= $max)
+          {
+            $left++;
+            $proj += $inc;
+          }
+          $desc .= ' (' . Quant('use', $left) . ' left)';
+        }
+        if ($parent >= 0)
+        {
+          my $parentname = Format($INF->{'iteminfo'}[$parent]{'name'});
+          $desc .= " (in $parentname)";
+        }
+        if ($corpse >= 0)
+        {
+          my $corpsename = Format($INF->{'corpseinfo'}[$corpse]{'name'});
+          $desc .= " (on $corpsename)";
+        }
+        $quant += $q;
+        push(@coordlist, $desc);
+      }
+      my $coords = join(' - ', @coordlist);
+      
+      $html .= qq(<li class="item_$type"><span class="imgwrap">&nbsp;<img class="item" src="$bitmap">&nbsp;</span> ) . Quant($name, $ct);
+      $html .= qq( <span class="ammo_rounds">($quant rounds)</span>) if $cat eq 'ammo';
+      $html .= qq( <span class="item_coord_list">$coords</span></li>\n);
+    }
+    $html .= qq(</ul><div style="display: none">$descs</div>\n);
+  }
+
+  # Corpses
+  if (scalar @corpses)
+  {
+    $html .= qq(<h3 class="corpse_all">The Dead</h3><ul class="corpse_summary">\n);
+    for my $corpse (@corpses)
+    {
+      my ($which, $col, $row, $pickups) = @$corpse;
+      my $ci = $INF->{'corpseinfo'}[$which];
+      die "Corpse not found: $which ($level: $col, $row)\n" unless $ci;
+      my ($name, $bitmap) = (Format($ci->{'name'}), $IMG . $ci->{'image'});
+      $html .= qq(<li class="corpse_$which"><span class="imgwrap">&nbsp;<img class="corpse" src="$bitmap">&nbsp;</span> <span class="coord_list">($col,&nbsp;$row)</span> $name);
+      
+      if (scalar @$pickups)
+      {
+        $html .= qq(<ul class="corpse_items">\n);
+        for my $p (@$pickups)
+        {
+          my ($ap, $ai, $cp, $corpse) = @$p;
+          my $type = $ap->{'type'};
+          my $ii = $INF->{'iteminfo'}[$type];
+          my ($iname, $ibitmap, $icat) = (Format($ii->{'name'}), $IMG . $ii->{'image'}, $ii->{'category'});
+          $html .= qq(<li class="item_$type"><span class="imgwrap">&nbsp;<img class="corpse_item" src="$ibitmap">&nbsp;</span> $iname);
+          $html .= ' x' . $ap->{'quantity'} if $icat eq 'ammo';
+          
+          if ($cp)
+          {
+            my $subtype = $cp->{'type'};
+            my $sii = $INF->{'iteminfo'}[$subtype];
+            my ($sname, $sbitmap, $scat) = (Format($sii->{'name'}), $IMG . $sii->{'image'}, $sii->{'category'});
+            $html .= qq(<ul class="corpse_items">\n<li class="item_$subtype"><span class="imgwrap">&nbsp;<img class="corpse_item" src="$sbitmap">&nbsp;</span> $sname);
+            $html .= ' x' . $cp->{'quantity'} if $scat eq 'ammo';
+            $html .= qq(</li>\n</ul>\n);
+          }
+          $html .= qq(</li>\n);
+        }
+        $html .= qq(</ul>\n);
+      }
+      $html .= qq(</li>\n);
+    }
+    $html .= qq(</ul>\n);
+  }
+  
+  # Static monsters
+  if ((scalar keys %monsters) || (scalar keys %respawns))
+  {
+    my $descs = '';
+    $html .= qq(<h3 class="monster_all">Monsters</h3><ul class="monster_summary">\n);
+    for my $type (sort keys %monsters)
+    {
+      my $mi = $INF->{'monsterinfo'}[$type];
+      my ($name, $bitmap, $desc) = (Format($mi->{'name'}), $IMG . $mi->{'image'}, Format($mi->{'death'}));
+      $descs .= <<END;
+<div id="monsterdesc_$type" class="monsterdesc popup">
+<div class="imgwrap">&nbsp;<img src="$bitmap">&nbsp;</div>
+<div class="name">$name</div>
+<div class="desc">$desc</div>
+</div>
+END
+      
+      my $ct = scalar @{ $monsters{$type} };
+      my @coordlist;
+      for my $coord (sort { $a->[1] <=> $b->[1] || $a->[0] <=> $b->[0] } @{ $monsters{$type} })
+      {
+        push(@coordlist, '(' . join(',&nbsp;', @$coord) . ')');
+      }
+      my $coords = join(' - ', @coordlist);
+
+      $html .= qq(<li class="monster_$type"><span class="imgwrap">&nbsp;<img class="monster_initial" src="$bitmap">&nbsp;</span> ) . Quant($name, $ct);
+      my $rand = $respawns{$type};
+      $html .= qq( <span class="random_rate">(Random rate: $rand)</span>) if $rand;
+      $html .= qq( <span class="monster_coord_list">$coords</span></li>\n);
+    }
+    for my $type (sort keys %respawns)
+    {
+      my $rand = $respawns{$type};
+      next unless $rand;
+      next if $monsters{$type};
+      my $mi = $INF->{'monsterinfo'}[$type];
+      my ($name, $bitmap, $desc) = (Format($mi->{'name'}), $IMG . $mi->{'image'}, Format($mi->{'death'}));
+      $descs .= <<END;
+<div id="monsterdesc_$type" class="monsterdesc popup">
+<div class="imgwrap">&nbsp;<img src="$bitmap">&nbsp;</div>
+<div class="name">$name</div>
+<div class="desc">$desc</div>
+</div>
+END
+      
+      my $plname = Plural($name);
+      
+      $html .= qq(<li class="monster_$type"><span class="imgwrap">&nbsp;<img class="monster_respawn" src="$bitmap">&nbsp;</span> $plname <span class="random_rate">(Random rate: $rand)</span></li>\n);
+    }
+    $html .= qq(</ul><div style="display: none">$descs</div>\n);
+  }
+  
+  # Respawning monsters
+#   my @respawns;
+#   for my $s (@$spawnlist)
+#   {
+#     if ($s->{'frequency'})
+#     {
+#       push(@respawns, [ $s->{'type'}, $monsterinfo[$s->{'type'}], $s->{'frequency'} ]);
+#     }
+#   }
+#   if (scalar @respawns)
+#   {
+#     $html .= qq(<h3 class="respawn_all">Random Monsters</h3><ul class="respawn_summary">\n);
+#     for my $respawn (sort { $a->[0] <=> $b->[0] } @respawns)
+#     {
+#       my ($type, $info, $frequency) = @$respawn;
+#       my ($name, $bitmap) = @$info;
+#
+#       $html .= qq(<li class="monster_$type"><span class="imgwrap">&nbsp;<img class="monster_respawn" src="$bitmap">&nbsp;</span> $name (rate: $frequency)</li>\n);
+#     }
+#     $html .= "</ul>\n";
+#   }
+  
+  # Secret doors
+#   if (scalar @secrets)
+#   {
+#     $html .= qq(<h3 class="door_secret_all">) . Quant('Secret door', scalar(@secrets)) . qq(</h3>\n);
+#     my @coordlist;
+#     for my $coord (sort { $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] } @secrets)
+#     {
+#       push(@coordlist, '(' . $coord->[1] . ', ' . $coord->[2] . ')');
+#     }
+#     my $coords = join(' - ', @coordlist);
+#     $html .= qq(<div><span class="door_secret_coord_list">$coords</span></div>\n);
+#   }
+
+  # Door triggers and other special sectors
+  if (scalar keys %dtriggers ||
+      scalar @triggers ||
+      scalar @saves ||
+      scalar @secrets)
+  {
+    $html .= qq(<h3 class="trigger_all">Locations</h3><ul class="trigger_summary">\n);
+    for my $type (sort { $a <=> $b } keys %dtriggers)
+    {
+      my $ct = scalar @{ $dtriggers{$type} };
+      my @coordlist;
+      for my $coord (sort { $a->[1] <=> $b->[1] || $a->[0] <=> $b->[0] } @{ $dtriggers{$type} })
+      {
+        push(@coordlist, '(' . join(',&nbsp;', @$coord) . ')');
+      }
+      my $coords = join(' - ', @coordlist);
+
+      my $name = $INF->{'sectorinfo'}[4]{'sub'}[$type]{'name'};
+      die "No door trigger type $type ($level)" unless $name;
+      $html .= qq(<li class="door_trigger_$type">) . Quant($name, $ct) . qq( <span class="door_trigger_coord_list">$coords</span></li>\n);
+    }
+    if (scalar @triggers)
+    {
+      my @coordlist;
+      for my $coord (sort { $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] } @triggers)
+      {
+        push(@coordlist, '(' . $coord->[1] . ',&nbsp;' . $coord->[2] . ')');
+      }
+      my $coords = join(' - ', @coordlist);
+      $html .= qq(<li class="other_trigger_all">) . Quant('Do-not-disturb sector', scalar @coordlist) . qq(<span class="other_trigger_coord_list">$coords</span></li>\n);
+    }
+    if (scalar @saves)
+    {
+      my @coordlist;
+      for my $coord (sort { $a->[1] <=> $b->[1] || $a->[0] <=> $b->[0] } @saves)
+      {
+        push(@coordlist, '(' . join(',&nbsp;', @$coord) . ')');
+      }
+      my $coords = join(' - ', @coordlist);
+      $html .= qq(<li class="save_all">) . Quant('Save rune', scalar @coordlist) . qq(<span class="save_coord_list">$coords</span></li>\n);
+    }
+    if (scalar @secrets)
+    {
+      my @coordlist;
+      for my $coord (sort { $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] } @secrets)
+      {
+        push(@coordlist, '(' . $coord->[1] . ',&nbsp;' . $coord->[2] . ') ' . $INF->{'directions'}[$coord->[0]] . ' side');
+      }
+      my $coords = join(' - ', @coordlist);
+      $html .= qq(<li class="door_secret_all">) . Quant('False wall', scalar @coordlist) . qq(<span class="door_secret_coord_list">$coords</span></li>\n);
+    }
+    $html .= "</ul>\n";
+  }
+  
+
+  # Other triggers
+#   if (scalar @triggers)
+#   {
+#     $html .= qq(<h3 class="other_trigger_all">Special Zones</h3><ul class="other_trigger_summary">\n);
+#     my @coordlist;
+#     for my $coord (sort { $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] } @triggers)
+#     {
+#       push(@coordlist, '(' . $coord->[1] . ',&nbsp;' . $coord->[2] . ')');
+#     }
+#     my $coords = join(' - ', @coordlist);
+#     $html .= qq(<li class="other_trigger_all">) . Quant('Sector', scalar @coordlist) . qq(<span class="other_trigger_coord_list">$coords</span></li></ul>\n);
+#   }
+
+  # Save runes
+#   if (scalar @saves)
+#   {
+#     $html .= qq(<h3 class="save_all">Save Runes</h3><ul class="save_summary">\n);
+#     my @coordlist;
+#     for my $coord (sort { $a->[1] <=> $b->[1] || $a->[0] <=> $b->[0] } @saves)
+#     {
+#       push(@coordlist, '(' . join(',&nbsp;', @$coord) . ')');
+#     }
+#     my $coords = join(' - ', @coordlist);
+#     $html .= qq(<li class="save_all">) . Quant('Save rune', scalar @coordlist) . qq(<span class="save_coord_list">$coords</span></li></ul>\n);
+#   }
+
+  # Teleporters
+  if (scalar @teles)
+  {
+    $html .= qq(<h3 class="tele_all">Teleporters</h3><ul class="tele_summary">\n);
+    for my $tele (sort { $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] } @teles)
+    {
+      my ($info, $col, $row, $type) = @$tele;
+      my $idx = $info->{'index'};
+      my $dcol = $info->{'x'};
+      my $drow = $info->{'y'};
+      $html .= qq(<li class="ladder_$idx"><span class="coord_list">($col,&nbsp;$row)</span> $type to ($dcol,&nbsp;$drow)</li>\n);
+    }
+    $html .= "</ul>\n";
+  }
+  
+  # Ladders
+  if (scalar @ladders)
+  {
+    $html .= qq(<h3 class="ladder_all">Exits</h3><ul class="ladder_summary">\n);
+    for my $ladder (sort { $a->[0]{'level'} <=> $b->[0]{'level'} || $a->[2] <=> $b->[2] || $a->[1] <=> $b->[1] } @ladders)
+    {
+      my ($info, $col, $row, $type) = @$ladder;
+      my $idx = $info->{'index'};
+      my $dlevel = $info->{'level'};
+      my $dcol = $info->{'x'};
+      my $drow = $info->{'y'};
+      $html .= qq(<li class="ladder_$idx"><span class="coord_list">($col,&nbsp;$row)</span> $type to );
+      if ($dlevel != $level)
+      {
+        $html .= LevelLink($dlevel) . ' ';
+      }
+      $html .= "($dcol,&nbsp;$drow)</li>\n";
+    }
+    $html .= "</ul>\n";
+  }
+  
+  $html .= <<END;
+</div>
+</body>
+</html>
+END
+
+  DoPage(\%opts, $html);
+}
+
+sub IndexOf
+{
+  my ($ref, $idx) = @_;
+  
+  for my $r (@$ref)
+  {
+    if ($r->{'index'} == $idx)
+    {
+      return $r;
+    }
+  }
+  return undef;
+}
+
+sub LevelLink
+{
+  my ($num) = @_;
+  my $which = $light ? 'light' : 'level';
+  return sprintf(qq(<a href="$MAP_URL/$disp/$which%03d.html">%s</a>), $num, LevelName($num));
+}
+  
+sub LevelName
+{
+  my ($num) = @_;
+  
+  return Format($INF->{'levelinfo'}[$num]{'name'});
+}
+
+sub GridStyle
+{
+  my ($col, $row) = @_;
+  
+  my $xp = ((int($col) + 1) * $dim);
+  my $yp = ((int($row) + 1) * $dim);
+  return qq(position: absolute; left: ${xp}px; top: ${yp}px; width: ${dim}px; height: ${dim}px);
+}
+sub GridSpot
+{
+  my ($col, $row, @classes) = @_;
+  
+  return q(<div class=") . join(' ', @classes) .
+         q(" style=") . GridStyle($col, $row) . q("></div>);
+}
+
+sub GridLevelLink
+{
+  my ($col, $row, $level, $title) = @_;
+  
+  my $style = GridStyle($col, $row);
+  my $which = $light ? 'light' : 'level';
+  my $href = sprintf("$MAP_URL/$disp/$which%03d.html", $level);
+  
+  return qq(<a href="$href" class="levellink" style="$style" title="$title"></a>);
+}
+
+sub PickupForItem
+{
+  my ($pickup_ref, $item_idx) = @_;
+  
+  return undef if $item_idx < 0;
+  
+  for my $p (@$pickup_ref)
+  {
+    return $p if ($p->[1]{'index'} == $item_idx);
+  }
+  return undef;
+}
+
+sub Quant
+{
+  my ($name, $quantity) = @_;
+  return $name if $quantity == 1;
+  $quantity = 'No' if $quantity == 0;
+  return $quantity . ' ' . Plural($name);
+}
+
+sub Plural
+{
+  my ($str) = @_;
+  
+  return $INF->{'plurals'}{$str} || ($str . 's');
+}
