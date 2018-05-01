@@ -234,13 +234,21 @@ END
     
     my $ii = $INF->{'iteminfo'}[$ap->{'type'}];
         
-    my $cp;
+    my @cps;
     if ($ii->{'category'} eq 'container' && $ap->{'quantity'} >= 0)
     {
-      $cp = IndexOf($pickuplist, $ap->{'quantity'});
+      my $cp = IndexOf($pickuplist, $ap->{'quantity'});
       $html .= GridSpot($ai->{'x'}, $ai->{'y'}, 'item_indicator', 'item_indicator_' . $cp->{'type'});
+      push(@cps, $cp);
+      while ($cp->{'contains'} > 0)
+      {
+        $cp = IndexOf($pickuplist, $cp->{'contains'});
+        $html .= GridSpot($ai->{'x'}, $ai->{'y'}, 'item_indicator', 'item_indicator_' . $cp->{'type'});
+        push(@cps, $cp);
+      }
+        
     }
-    push(@pickups, [ $ap, $ai, $cp, -1 ]);
+    push(@pickups, [ $ap, $ai, \@cps, -1 ]);
   }
   
   my (@ladders, @teles, @secrets, @doors, @doortriggers, @corpses, @triggers, @saves);
@@ -373,11 +381,11 @@ END
   my %items;
   for my $p (@pickups)
   {
-    my ($ap, $ai, $cp, $corpse) = @$p;
+    my ($ap, $ai, $cps, $corpse) = @$p;
     my $col = int($ai->{'x'});
     my $row = int($ai->{'y'});
     
-    for my $pick ($ap, $cp)
+    for my $pick ($ap, @$cps)
     {
       next unless $pick;
       my $type = $pick->{'type'};
@@ -546,14 +554,14 @@ END
         $html .= qq(<ul class="corpse_items">\n);
         for my $p (@$pickups)
         {
-          my ($ap, $ai, $cp, $corpse) = @$p;
+          my ($ap, $ai, $cps, $corpse) = @$p;
           my $type = $ap->{'type'};
           my $ii = $INF->{'iteminfo'}[$type];
           my ($iname, $ibitmap, $icat) = (Format($ii->{'name'}), $IMG . $ii->{'image'}, $ii->{'category'});
           $html .= qq(<li class="item_$type"><span class="imgwrap">&nbsp;<img class="corpse_item" src="$ibitmap">&nbsp;</span> $iname);
           $html .= ' x' . $ap->{'quantity'} if $icat eq 'ammo';
           
-          if ($cp)
+          for my $cp (@$cps)
           {
             my $subtype = $cp->{'type'};
             my $sii = $INF->{'iteminfo'}[$subtype];
